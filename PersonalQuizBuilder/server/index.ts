@@ -10,9 +10,25 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Ensure required directories exist
+const requiredDirs = ['temp_uploads', 'uploads', 'persistent_uploads', 'public'].map(dir => 
+  pathModule.resolve(process.cwd(), dir)
+);
+
+requiredDirs.forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Created directory: ${dir}`);
+  }
+});
+
 // Special route for sitemap.xml - ensure it's served with XML content type
 app.get('/sitemap.xml', (req, res) => {
-  const sitemapPath = pathModule.join(process.cwd(), 'public', 'sitemap.xml');
+  const sitemapPath = pathModule.resolve(process.cwd(), 'public', 'sitemap.xml');
+  if (!fs.existsSync(sitemapPath)) {
+    res.status(404).send('Sitemap not found');
+    return;
+  }
   fs.readFile(sitemapPath, (err, data) => {
     if (err) {
       res.status(500).send('Error reading sitemap file');
