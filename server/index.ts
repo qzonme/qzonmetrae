@@ -11,17 +11,26 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Log important environment information
+console.log('Node environment:', process.env.NODE_ENV);
+console.log('Current working directory:', process.cwd());
 console.log('Project root:', projectRoot);
 
-// Ensure required directories exist
-const requiredDirs = ['temp_uploads', 'uploads', 'persistent_uploads'].map(dir => {
+// Safely resolve a path with fallback to cwd
+function safeResolvePath(pathSegment: string): string {
   try {
-    return getProjectPath(dir);
+    const resolvedPath = getProjectPath(pathSegment);
+    console.log(`Resolved ${pathSegment} to:`, resolvedPath);
+    return resolvedPath;
   } catch (error) {
-    console.error(`Error resolving path for directory ${dir}:`, error);
-    return path.join(process.cwd(), dir);
+    const fallbackPath = path.join(process.cwd(), pathSegment);
+    console.log(`Fallback ${pathSegment} to:`, fallbackPath);
+    return fallbackPath;
   }
-});
+}
+
+// Ensure required directories exist
+const requiredDirs = ['temp_uploads', 'uploads', 'persistent_uploads', 'dist/public'].map(safeResolvePath);
 
 requiredDirs.forEach(dir => {
   try {
@@ -38,19 +47,29 @@ requiredDirs.forEach(dir => {
 
 // Special route for sitemap.xml - ensure it's served with XML content type
 app.get('/sitemap.xml', (req: Request, res: Response) => {
-  const sitemapPath = getProjectPath('public', 'sitemap.xml');
-  if (!fs.existsSync(sitemapPath)) {
-    res.status(404).send('Sitemap not found');
-    return;
-  }
-  fs.readFile(sitemapPath, (err: NodeJS.ErrnoException | null, data: Buffer) => {
-    if (err) {
-      res.status(500).send('Error reading sitemap file');
+  try {
+    const sitemapPath = safeResolvePath(path.join('public', 'sitemap.xml'));
+    console.log('Looking for sitemap at:', sitemapPath);
+    
+    if (!fs.existsSync(sitemapPath)) {
+      console.log('Sitemap not found at:', sitemapPath);
+      res.status(404).send('Sitemap not found');
       return;
     }
-    res.header('Content-Type', 'application/xml');
-    res.send(data);
-  });
+    
+    fs.readFile(sitemapPath, (err: NodeJS.ErrnoException | null, data: Buffer) => {
+      if (err) {
+        console.error('Error reading sitemap:', err);
+        res.status(500).send('Error reading sitemap file');
+        return;
+      }
+      res.header('Content-Type', 'application/xml');
+      res.send(data);
+    });
+  } catch (error) {
+    console.error('Error handling sitemap request:', error);
+    res.status(500).send('Internal server error');
+  }
 });
 
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -108,12 +127,24 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     }
   }
 
-  if (app.get("env") === "development") {
-    console.log('Starting in development mode with Vite middleware');
-    await setupVite(app, server);
-  } else {
-    console.log('Starting in production mode with static file serving');
-    serveStatic(app);
+  try {
+    if (app.get("env") === "development") {
+      console.log('Starting in development mode with Vite middleware');
+      await setupVite(app, server);
+    } else {
+      console.log('Starting in production mode with static file serving');
+      const publicDir = safeResolvePath('dist/public');
+      console.log('Static files directory:', publicDir);
+      
+      if (!fs.existsSync(publicDir)) {
+        console.error('Public directory not found at:', publicDir);
+      }
+      
+      serveStatic(app);
+    }
+  } catch (error) {
+    console.error('Error setting up server mode:', error);
+    throw error;
   }
 
   const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
