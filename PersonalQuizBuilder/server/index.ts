@@ -53,9 +53,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
-  res.json = function(bodyJson: any) {
+  res.json = function(bodyJson: any, ...args: any[]) {
     capturedJsonResponse = bodyJson;
-    return originalResJson.call(res, bodyJson);
+    return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
   res.on("finish", () => {
@@ -88,47 +88,57 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     throw err;
   });
 
-  // Create required directories before setting up routes
-  const dirs = ['dist/public', 'uploads', 'temp_uploads', 'persistent_uploads'];
-  for (const dir of dirs) {
-    const dirPath = getProjectPath(dir);
-    try {
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-        console.log(`Created directory: ${dirPath}`);
-      }
-    } catch (error) {
-      console.error(`Error creating directory ${dir}:`, error);
-    }
-  }
-
   if (app.get("env") === "development") {
-    console.log('Starting in development mode with Vite middleware');
     await setupVite(app, server);
   } else {
-    console.log('Starting in production mode with static file serving');
     serveStatic(app);
+    
+    app.get('*', (req: Request, res: Response) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/assets')) {
+        return;
+      }
+      
+      const htmlFile = getProjectPath('dist/public/index.html');
+      if (fs.existsSync(htmlFile)) {
+        res.sendFile(htmlFile);
+      } else {
+        console.error('index.html not found at:', htmlFile);
+        res.status(404).send('Not found');
+      }
+    });
   }
 
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, async () => {
-    log(`serving on port ${port}`);
-    
-    try {
-      const cloudinaryTestResult = await testCloudinaryConnection();
-      if (cloudinaryTestResult.success) {
-        log('Cloudinary connection successful');
-      } else {
-        log('Warning: Could not connect to Cloudinary - image uploads may fail');
-      }
-    } catch (error) {
-      log(`Error testing Cloudinary connection: ${error instanceof Error ? error.message : String(error)}`);
+  // Validate required directories and files exist
+  const criticalPaths = [
+    getProjectPath('dist/public/index.html'),
+    getProjectPath('dist/public/assets'),
+    getProjectPath('uploads'),
+    getProjectPath('persistent_uploads')
+  ];
+
+  criticalPaths.forEach(path => {
+    if (!fs.existsSync(path)) {
+      console.error(`Critical path not found: ${path}`);
+    } else {
+      console.log(`Critical path exists: ${path}`);
     }
-    
-    scheduleCleanupTask(5 * 60 * 1000);
-    log('Scheduled daily cleanup task for expired quizzes (7-day retention period)');
   });
+
+  // Log environment and port information
+  const port = process.env.PORT || 3000;
+  console.log(`Server starting in ${app.get('env')} mode on port ${port}`);
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on port ${port}`);
+  });
+
+  // Test Cloudinary connection
+  try {
+    await testCloudinaryConnection();
+    console.log('Cloudinary connection test successful');
+  } catch (error) {
+    console.error('Cloudinary connection test failed:', error);
+  }
+
+  // Schedule cleanup task
+  scheduleCleanupTask();
 })();
