@@ -19,8 +19,7 @@ console.log({
   'Project root': projectRoot,
   'Node env': process.env.NODE_ENV,
   'Current directory': process.cwd(),
-  'Dirname': __dirname,
-  'Import meta url': import.meta.url
+  'File URL': import.meta.url
 });
 
 // Safely resolve a path with fallback to cwd
