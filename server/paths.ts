@@ -3,19 +3,24 @@ import { dirname, join, resolve } from 'path';
 
 let projectRoot: string;
 
-try {
-  if (import.meta.url) {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    projectRoot = resolve(__dirname, '..');
-    console.log('Using import.meta.url for project root');
-  } else {
-    throw new Error('import.meta.url not available');
+// In production, always use /app as the root
+if (process.env.NODE_ENV === 'production') {
+  projectRoot = '/app';
+  console.log('Production environment: Using /app as project root');
+} else {
+  try {
+    if (import.meta.url) {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      projectRoot = resolve(__dirname, '..');
+      console.log('Development: Using import.meta.url for project root');
+    } else {
+      throw new Error('import.meta.url not available');
+    }
+  } catch (error) {
+    projectRoot = process.cwd();
+    console.log(`Development fallback: Using ${projectRoot} as project root`);
   }
-} catch (error) {
-  // Fallback for production build - always use /app in production
-  projectRoot = process.env.NODE_ENV === 'production' ? '/app' : process.cwd();
-  console.log(`Using ${projectRoot} as project root (${process.env.NODE_ENV} environment)`);
 }
 
 export { projectRoot };
