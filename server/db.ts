@@ -1,13 +1,9 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { Pool } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
 import * as schema from "@shared/schema";
 
-// Configure WebSocket for Neon
-neonConfig.webSocketConstructor = ws;
-neonConfig.useSecureWebSocket = false; // Allow non-secure WebSocket connections
-neonConfig.pipelineTLS = false; // Disable TLS pipeline to avoid cert issues
-neonConfig.pipelineConnect = false; // Disable connection pipelining
+// Force HTTP pooling instead of WebSocket
+process.env.NEON_CONNECTION_TYPE = 'http';
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -15,17 +11,14 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Configure database pool with more robust settings
-export const pool = new Pool({ 
+// Configure database pool with HTTP settings
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-    checkServerIdentity: () => undefined
-  },
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
-  maxUses: 7500 // Close connections after 7500 queries
+  ssl: true, // Use SSL without custom configuration
+  max: 10, // Reduce max connections for HTTP pooling
+  connectionTimeoutMillis: 0, // Wait indefinitely for connection
+  idleTimeoutMillis: 120000, // 2 minute idle timeout
+  keepalive: true // Enable TCP keepalive
 });
 
 // Add error handling for the pool

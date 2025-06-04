@@ -7,6 +7,23 @@ import {
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
+// Add retry helper function
+async function withRetry<T>(operation: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastError;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.error(`Database operation failed (attempt ${i + 1}/${maxRetries}):`, error);
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // Storage interface
 export interface IStorage {
   // User operations
@@ -49,14 +66,12 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Username is required");
     }
     
-    try {
+    return await withRetry(async () => {
+      console.log('Attempting to create user in database...');
       const [user] = await db.insert(users).values(insertUser).returning();
       console.log('Successfully created user:', user);
       return user;
-    } catch (error) {
-      console.error('Error creating user:', error);
-      throw error;
-    }
+    });
   }
   
   // Quiz methods
