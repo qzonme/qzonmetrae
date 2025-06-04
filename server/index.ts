@@ -53,9 +53,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
-  res.json = function(bodyJson: any, ...args: any[]) {
+  res.json = function(bodyJson: any) {
     capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+    return originalResJson.call(res, bodyJson);
   };
 
   res.on("finish", () => {
@@ -98,8 +98,25 @@ app.use((req: Request, res: Response, next: NextFunction) => {
         return;
       }
       
-      const distPath = getProjectPath('dist/public');
-      res.sendFile(getProjectPath(distPath, 'index.html'));
+      try {
+        // First try the bundled path
+        const bundledPath = getProjectPath('dist/public/index.html');
+        if (fs.existsSync(bundledPath)) {
+          return res.sendFile(bundledPath);
+        }
+        
+        // Fallback to project root
+        const rootPath = getProjectPath('index.html');
+        if (fs.existsSync(rootPath)) {
+          return res.sendFile(rootPath);
+        }
+
+        // If neither exists, send 404
+        res.status(404).send('Not found');
+      } catch (error) {
+        console.error('Error serving static file:', error);
+        res.status(500).send('Internal server error');
+      }
     });
   }
 
