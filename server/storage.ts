@@ -41,13 +41,22 @@ export class DatabaseStorage implements IStorage {
   }
   
   async createUser(insertUser: InsertUser): Promise<User> {
+    console.log('Creating user with data:', insertUser);
+    
     // Validate the username is not empty
     if (!insertUser.username || !insertUser.username.trim()) {
+      console.error('Username validation failed - empty username');
       throw new Error("Username is required");
     }
     
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+    try {
+      const [user] = await db.insert(users).values(insertUser).returning();
+      console.log('Successfully created user:', user);
+      return user;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
   }
   
   // Quiz methods
