@@ -70,8 +70,15 @@ export async function setupVite(app: Express, server: Server) {
 
 export function serveStatic(app: Express) {
   // In production, we serve from dist/public
-  const distPath = getProjectPath('dist', 'public');
-  console.log('Serving static files from:', distPath);
+  let distPath;
+  try {
+    distPath = getProjectPath('dist', 'public');
+    console.log('Serving static files from:', distPath);
+  } catch (error) {
+    console.error('Error resolving dist path:', error);
+    distPath = path.join(process.cwd(), 'dist', 'public');
+    console.log('Falling back to:', distPath);
+  }
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
