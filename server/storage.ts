@@ -53,8 +53,10 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return await withRetry(async () => {
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      return user;
+    });
   }
   
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -76,32 +78,31 @@ export class DatabaseStorage implements IStorage {
   
   // Quiz methods
   async getQuiz(id: number): Promise<Quiz | undefined> {
-    const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, id));
-    return quiz;
+    return await withRetry(async () => {
+      const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, id));
+      return quiz;
+    });
   }
   
   async getQuizByAccessCode(accessCode: string): Promise<Quiz | undefined> {
-    const [quiz] = await db
-      .select()
-      .from(quizzes)
-      .where(eq(quizzes.accessCode, accessCode));
-    return quiz;
+    return await withRetry(async () => {
+      const [quiz] = await db.select().from(quizzes).where(eq(quizzes.accessCode, accessCode));
+      return quiz;
+    });
   }
   
   async getQuizByUrlSlug(urlSlug: string): Promise<Quiz | undefined> {
-    const [quiz] = await db
-      .select()
-      .from(quizzes)
-      .where(eq(quizzes.urlSlug, urlSlug));
-    return quiz;
+    return await withRetry(async () => {
+      const [quiz] = await db.select().from(quizzes).where(eq(quizzes.urlSlug, urlSlug));
+      return quiz;
+    });
   }
   
   async getQuizByDashboardToken(token: string): Promise<Quiz | undefined> {
-    const [quiz] = await db
-      .select()
-      .from(quizzes)
-      .where(eq(quizzes.dashboardToken, token));
-    return quiz;
+    return await withRetry(async () => {
+      const [quiz] = await db.select().from(quizzes).where(eq(quizzes.dashboardToken, token));
+      return quiz;
+    });
   }
   
   async createQuiz(insertQuiz: InsertQuiz): Promise<Quiz> {
@@ -122,53 +123,41 @@ export class DatabaseStorage implements IStorage {
     
     console.log(`Creating quiz with creator: "${insertQuiz.creatorName}", slug: "${insertQuiz.urlSlug}"`);
     
-    // Create the quiz
-    const [quiz] = await db
-      .insert(quizzes)
-      .values(insertQuiz)
-      .returning();
-    
-    return quiz;
+    return await withRetry(async () => {
+      const [quiz] = await db.insert(quizzes).values(insertQuiz).returning();
+      return quiz;
+    });
   }
   
   // Question methods
   async getQuestionsByQuizId(quizId: number): Promise<Question[]> {
-    const result = await db
-      .select()
-      .from(questions)
-      .where(eq(questions.quizId, quizId))
-      .orderBy(questions.order);
-    
-    return result;
+    return await withRetry(async () => {
+      return await db.select().from(questions).where(eq(questions.quizId, quizId)).orderBy(questions.order);
+    });
   }
   
   async createQuestion(insertQuestion: InsertQuestion): Promise<Question> {
-    const [question] = await db
-      .insert(questions)
-      .values(insertQuestion)
-      .returning();
-    
-    return question;
+    return await withRetry(async () => {
+      const [question] = await db.insert(questions).values(insertQuestion).returning();
+      return question;
+    });
   }
   
-  // Quiz Attempt methods
+  // Quiz Attempt methods 
   async getQuizAttempts(quizId: number): Promise<QuizAttempt[]> {
-    const result = await db
-      .select()
-      .from(quizAttempts)
-      .where(eq(quizAttempts.quizId, quizId))
-      .orderBy(quizAttempts.score);
-    
-    return result.reverse(); // Reverse to get highest scores first
+    return await withRetry(async () => {
+      const result = await db.select().from(quizAttempts)
+        .where(eq(quizAttempts.quizId, quizId))
+        .orderBy(quizAttempts.score);
+      return result.reverse(); // Reverse to get highest scores first
+    });
   }
   
   async createQuizAttempt(insertAttempt: InsertQuizAttempt): Promise<QuizAttempt> {
-    const [attempt] = await db
-      .insert(quizAttempts)
-      .values(insertAttempt)
-      .returning();
-    
-    return attempt;
+    return await withRetry(async () => {
+      const [attempt] = await db.insert(quizAttempts).values(insertAttempt).returning();
+      return attempt;
+    });
   }
   
   // Check if a quiz is expired (older than 7 days)

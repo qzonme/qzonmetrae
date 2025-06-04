@@ -1,24 +1,23 @@
-import { Pool } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
-// Force HTTP pooling instead of WebSocket
-process.env.NEON_CONNECTION_TYPE = 'http';
+// Allow self-signed certificates for Railway's proxy
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
 
-// Configure database pool with HTTP settings
-export const pool = new Pool({
+// Configure pool with Railway-specific settings
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: true, // Use SSL without custom configuration
-  max: 10, // Reduce max connections for HTTP pooling
-  connectionTimeoutMillis: 0, // Wait indefinitely for connection
-  idleTimeoutMillis: 120000, // 2 minute idle timeout
-  keepalive: true // Enable TCP keepalive
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Add error handling for the pool
@@ -27,15 +26,14 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
-pool.on('connect', () => {
-  console.log('Successfully connected to database');
-});
-
 // Test the connection
-pool.connect().then(() => {
-  console.log('Initial database connection successful');
-}).catch(err => {
-  console.error('Error establishing initial database connection:', err);
-});
+pool.connect()
+  .then(() => {
+    console.log('Successfully connected to PostgreSQL database');
+  })
+  .catch(err => {
+    console.error('Error connecting to PostgreSQL database:', err);
+    process.exit(-1);
+  });
 
-export const db = drizzle({ client: pool, schema });
+export const db = drizzle(pool, { schema });
