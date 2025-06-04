@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && node -e \"const fs=require('fs'); const path=require('path'); const src=path.join(process.cwd(),'dist','public'); const dest=path.join(process.cwd(),'public'); if(!fs.existsSync(dest)) fs.mkdirSync(dest,{recursive:true}); fs.cpSync(src,dest,{recursive:true});\"",
     "prestart": "node -e \"const fs=require('fs'); const path=require('path'); ['temp_uploads', 'uploads', 'persistent_uploads', 'dist/public'].forEach(dir => { const fullPath = path.join(process.cwd(), dir); if (!fs.existsSync(fullPath)) { fs.mkdirSync(fullPath, {recursive:true}); console.log('Created:', fullPath); } });\"",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "postinstall": "npm run build",
