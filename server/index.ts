@@ -14,7 +14,14 @@ app.use(express.urlencoded({ extended: false }));
 // Log important environment information
 console.log('Node environment:', process.env.NODE_ENV);
 console.log('Current working directory:', process.cwd());
-console.log('Project root:', projectRoot);
+// Print environment info for debugging
+console.log({
+  'Project root': projectRoot,
+  'Node env': process.env.NODE_ENV,
+  'Current directory': process.cwd(),
+  'Dirname': __dirname,
+  'Import meta url': import.meta.url
+});
 
 // Safely resolve a path with fallback to cwd
 function safeResolvePath(pathSegment: string): string {
