@@ -5,6 +5,7 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { getProjectPath } from "./paths";
 
 const viteLogger = createLogger();
 
@@ -23,7 +24,7 @@ export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
-    allowedHosts: true,
+    allowedHosts: ["*"],
   };
 
   const vite = await createViteServer({
@@ -68,7 +69,9 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  // Use the dist/public directory instead of server/public
+  const distPath = getProjectPath('dist/public');
+  console.log('Serving static files from:', distPath);
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
@@ -80,6 +83,13 @@ export function serveStatic(app: Express) {
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexPath = path.join(distPath, "index.html");
+    console.log('Serving index.html from:', indexPath);
+    
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Not found - index.html does not exist');
+    }
   });
 }
