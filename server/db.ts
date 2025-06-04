@@ -11,5 +11,12 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+    // Adding these options to handle the Railway proxy
+    checkServerIdentity: () => undefined 
+  }
+});
 export const db = drizzle({ client: pool, schema });
