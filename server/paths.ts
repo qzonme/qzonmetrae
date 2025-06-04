@@ -16,5 +16,9 @@ try {
 export { projectRoot };
 
 export function getProjectPath(...paths: string[]) {
+  if (paths.some(p => p === undefined || p === null)) {
+    console.error('Invalid path segment:', paths);
+    throw new Error('Invalid path segment: all path segments must be defined');
+  }
   return join(projectRoot, ...paths);
 }

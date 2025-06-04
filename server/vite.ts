@@ -69,9 +69,10 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // In production, we serve from dist/public
-  const distPath = getProjectPath('dist/public');
-  console.log('Serving static files from:', distPath);
+  try {
+    // In production, we serve from dist/public
+    const distPath = getProjectPath('dist', 'public');
+    console.log('Serving static files from:', distPath);
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

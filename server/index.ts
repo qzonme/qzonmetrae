@@ -5,6 +5,7 @@ import * as fs from "fs";
 import { scheduleCleanupTask } from './cleanup';
 import { testCloudinaryConnection } from './cloudinary';
 import { projectRoot, getProjectPath } from './paths';
+import path from 'path';
 
 const app = express();
 app.use(express.json());
@@ -13,9 +14,14 @@ app.use(express.urlencoded({ extended: false }));
 console.log('Project root:', projectRoot);
 
 // Ensure required directories exist
-const requiredDirs = ['temp_uploads', 'uploads', 'persistent_uploads', 'dist/public'].map(dir => 
-  getProjectPath(dir)
-);
+const requiredDirs = ['temp_uploads', 'uploads', 'persistent_uploads'].map(dir => {
+  try {
+    return getProjectPath(dir);
+  } catch (error) {
+    console.error(`Error resolving path for directory ${dir}:`, error);
+    return path.join(process.cwd(), dir);
+  }
+});
 
 requiredDirs.forEach(dir => {
   try {
