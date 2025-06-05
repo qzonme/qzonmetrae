@@ -28,29 +28,35 @@ const QuizCreation: React.FC = () => {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   
-  // Get the username directly from session storage once
+  // Get the username directly from session storage once and preserve it
   React.useEffect(() => {
     // Check both possible keys from session storage
-    const username = sessionStorage.getItem("username") || sessionStorage.getItem("userName") || "";
-    console.log("Retrieved username from session:", username);
-    // Debug: List all session storage keys to verify what's available
-    console.log("All session storage items:", 
-      Object.keys(sessionStorage).map(key => {
-        return { key, value: sessionStorage.getItem(key) };
-      })
-    );
+    const username = sessionStorage.getItem("username") || sessionStorage.getItem("userName");
     
-    // Set the creator name from session storage
-    setCreatorName(username);
-    
-    // Make sure we're getting the creator name right
+    // Handle missing username case
     if (!username) {
       toast({
         title: "Important",
-        description: "Please return to the home page and enter your name first",
+        description: "Please go back to the homepage and enter your name first",
         variant: "destructive"
       });
+      return;
     }
+
+    console.log("Retrieved username from session:", username);
+    
+    // Clear ALL quiz-related data from storage while preserving user identity
+    const userId = sessionStorage.getItem("userId");
+    sessionStorage.clear();
+    localStorage.clear();
+    
+    // Restore critical user data
+    if (userId) sessionStorage.setItem("userId", userId);
+    sessionStorage.setItem("username", username);
+    sessionStorage.setItem("userName", username); // For compatibility
+    
+    // Set the creator name state
+    setCreatorName(username);
   }, [toast]);
   
   // Question state
@@ -82,16 +88,30 @@ const QuizCreation: React.FC = () => {
       console.error("Error managing quiz questions:", e);
     }
   }, [questions]);
-
-  // Clear questions when component mounts
+  // Clear storage on mount to ensure fresh state while preserving user identity
   useEffect(() => {
-    // Clear any existing questions
-    sessionStorage.removeItem('current_quiz_draft_questions');
-    localStorage.removeItem('qzonme_draft_questions'); // Clear old storage location too
+    // Get current user data
+    const username = sessionStorage.getItem("username") || sessionStorage.getItem("userName");
+    const userId = sessionStorage.getItem("userId");
+
+    if (!username || !userId) {
+      console.warn("Missing user identity data");
+      return;
+    }
+
+    // Clear all storage but preserve user identity
+    sessionStorage.clear();
+    localStorage.clear();
+
+    // Restore user identity
+    sessionStorage.setItem("userId", userId);
+    sessionStorage.setItem("username", username);
+    sessionStorage.setItem("userName", username); // For compatibility
+    
+    // Clear question-specific data
     setQuestions([]);
     
     return () => {
-      // Cleanup on unmount
       sessionStorage.removeItem('current_quiz_draft_questions');
     };
   }, []);
@@ -121,62 +141,44 @@ const QuizCreation: React.FC = () => {
       return response.json();
     }
   });
-
   // Create quiz mutation
   const createQuizMutation = useMutation({
     mutationFn: async () => {
-      // Validate quiz creator exists
-      if (!creatorName) {
-        toast({
-          title: "Missing Creator",
-          description: "Please go back to the homepage and enter your name",
-          variant: "destructive"
-        });
-        throw new Error("Creator name is missing");
+      // Get user identity from session storage
+      const currentUserId = parseInt(sessionStorage.getItem("userId") || "0");
+      const username = sessionStorage.getItem("username") || sessionStorage.getItem("userName");
+      
+      // Validate user identity
+      if (!username || !currentUserId) {
+        console.error("Missing user identity:", { username, currentUserId });
+        throw new Error("Missing creator information. Please return to homepage.");
       }
       
+      // Use the username directly from storage to ensure consistency
+      const effectiveCreatorName = username;
+
       // Validate quiz has enough questions
       if (questions.length < requiredQuestionsCount) {
-        toast({
-          title: "More Questions Needed",
-          description: `Please add ${questionsNeeded} more question(s)`,
-          variant: "destructive"
-        });
-        throw new Error("Not enough questions");
+        throw new Error(`Quiz needs at least ${requiredQuestionsCount} questions.`);
       }
-      
-      // Get user ID from session
-      const currentUserId = parseInt(sessionStorage.getItem("userId") || "0");
-      
-      console.log(`Creating quiz with name: "${creatorName}" (ensuring fresh data)`);
-      
-      // Generate fresh tokens and codes
+
+      // Generate fresh tokens
       const accessCode = generateAccessCode();
-      const dashboardToken = generateDashboardToken();
-      
-      // Important: Force a fresh slug creation with the current name to avoid cache issues
-      // Clear any old creatorName data from localStorage (if any) as a safety measure
-      localStorage.removeItem("creatorName");
-      
-      // Generate the URL slug with the current creator name
-      const urlSlug = generateUrlSlug(creatorName);
-      
-      // Store the current dashboard token in sessionStorage for immediate access
-      sessionStorage.setItem("currentQuizDashboardToken", dashboardToken);
-      
+      const dashboardToken = generateDashboardToken();      const urlSlug = generateUrlSlug(effectiveCreatorName);
+
       // Create the quiz
       const quizResponse = await apiRequest("POST", "/api/quizzes", {
         creatorId: currentUserId,
-        creatorName: creatorName,
-        accessCode,
+        creatorName: effectiveCreatorName,
+        accessCode, 
         urlSlug,
         dashboardToken
       });
-      
+
       if (!quizResponse.ok) {
         throw new Error("Failed to create quiz");
       }
-      
+
       const quiz = await quizResponse.json();
       
       // Create all questions for the quiz
@@ -360,22 +362,75 @@ const QuizCreation: React.FC = () => {
     setQuestions(updatedQuestions);
   };
 
-  // Finish quiz creation
+  // Clear storage and validate quiz creation state
   const handleFinishQuiz = async () => {
     try {
-      const quiz = await createQuizMutation.mutateAsync();
+      // First validate creator name exists
+      const creatorName = sessionStorage.getItem("username") || sessionStorage.getItem("userName");
+      if (!creatorName) {
+        toast({
+          title: "Missing Creator Name",
+          description: "Please go back to the homepage and enter your name first",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Validate questions
+      if (questions.length < requiredQuestionsCount) {
+        toast({
+          title: "More Questions Needed",
+          description: `Please add ${questionsNeeded} more question(s)`,
+          variant: "destructive"
+        });
+        return;
+      }      // Clear ALL quiz-related data while preserving user identity
+      const userId = sessionStorage.getItem("userId");
+      const username = sessionStorage.getItem("username") || sessionStorage.getItem("userName");
       
-      // Clear ALL quiz-related data from storage
+      // Clear everything
+      sessionStorage.clear();
+      localStorage.clear();
+      
+      // Restore only essential user identity data
+      if (userId) sessionStorage.setItem("userId", userId);
+      if (username) {
+        sessionStorage.setItem("username", username);
+        sessionStorage.setItem("userName", username); // For compatibility
+      }
+
+      // Generate fresh tokens
+      const accessCode = generateAccessCode();
+      const dashboardToken = generateDashboardToken();
+      const urlSlug = generateUrlSlug(creatorName);
+
+      // Log creation attempt
+      console.log("Creating quiz with fresh data:", {
+        creatorName,
+        accessCode,
+        urlSlug 
+      });
+
+      // Create the quiz
+      const quiz = await createQuizMutation.mutateAsync();
+        
+      // Clear any remaining question data
       sessionStorage.removeItem('current_quiz_draft_questions');
       localStorage.removeItem('qzonme_draft_questions');
       setQuestions([]); // Reset questions state
-      
+        
       toast({
         title: "Quiz Created!",
         description: "Your quiz has been created successfully",
         variant: "default"
       });
-      
+        
+      // Store fresh tokens for share page
+      sessionStorage.setItem("currentQuizId", quiz.id.toString());
+      sessionStorage.setItem("currentQuizAccessCode", quiz.accessCode);
+      sessionStorage.setItem("currentQuizUrlSlug", quiz.urlSlug);
+      sessionStorage.setItem("currentQuizDashboardToken", quiz.dashboardToken);
+        
       // Navigate to share page
       navigate(`/share/${quiz.id}`);
     } catch (error) {
