@@ -66,34 +66,35 @@ const QuizCreation: React.FC = () => {
   
   // Collection of questions for this quiz - initialize from localStorage if available
   const [questions, setQuestions] = useState<Question[]>(() => {
-    // Try to load saved questions from localStorage
-    try {
-      const savedQuestions = localStorage.getItem('qzonme_draft_questions');
-      if (savedQuestions) {
-        const parsedQuestions = JSON.parse(savedQuestions);
-        if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-          console.log("Restored saved questions from local storage:", parsedQuestions.length);
-          return parsedQuestions;
-        }
-      }
-    } catch (e) {
-      console.error("Error loading saved questions:", e);
-    }
-    // Default to empty array if no saved questions or error
+    // Start with empty array for new quiz sessions
     return [];
   });
-  
-  // Save questions to localStorage whenever they change
+
+  // Save questions to sessionStorage (not localStorage) when they change
   useEffect(() => {
     try {
       if (questions.length > 0) {
-        localStorage.setItem('qzonme_draft_questions', JSON.stringify(questions));
-        console.log("Saved questions to local storage:", questions.length);
+        sessionStorage.setItem('current_quiz_draft_questions', JSON.stringify(questions));
+      } else {
+        sessionStorage.removeItem('current_quiz_draft_questions');
       }
     } catch (e) {
-      console.error("Error saving questions:", e);
+      console.error("Error managing quiz questions:", e);
     }
   }, [questions]);
+
+  // Clear questions when component mounts
+  useEffect(() => {
+    // Clear any existing questions
+    sessionStorage.removeItem('current_quiz_draft_questions');
+    localStorage.removeItem('qzonme_draft_questions'); // Clear old storage location too
+    setQuestions([]);
+    
+    return () => {
+      // Cleanup on unmount
+      sessionStorage.removeItem('current_quiz_draft_questions');
+    };
+  }, []);
   
   // Ad refresh counter - increments whenever we want to refresh ads
   const [adRefreshCounter, setAdRefreshCounter] = useState(0);
@@ -364,9 +365,10 @@ const QuizCreation: React.FC = () => {
     try {
       const quiz = await createQuizMutation.mutateAsync();
       
-      // Clear the saved questions from localStorage once quiz is created successfully
+      // Clear ALL quiz-related data from storage
+      sessionStorage.removeItem('current_quiz_draft_questions');
       localStorage.removeItem('qzonme_draft_questions');
-      console.log("Cleared draft questions from local storage after successful quiz creation");
+      setQuestions([]); // Reset questions state
       
       toast({
         title: "Quiz Created!",
@@ -378,6 +380,11 @@ const QuizCreation: React.FC = () => {
       navigate(`/share/${quiz.id}`);
     } catch (error) {
       console.error("Failed to create quiz:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create quiz. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
